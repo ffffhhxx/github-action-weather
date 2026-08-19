@@ -5,5 +5,5 @@ import vue from '@vitejs/plugin-vue'
 // （GitHub Pages 项目页 / Netlify / Vercel / 任意子路径）而无需修改代码。
 export default defineConfig({
   plugins: [vue()],
-  base: './',
+  base: '/github-action-weather/',
 })
