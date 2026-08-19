@@ -6,7 +6,8 @@
 
 - 实时天气：城市、气温、天气现象、风向风力、湿度、数据更新时间
 - 未来几天预报（`extensions=all`，默认返回 4 天）
-- 通过 URL 参数 `?city=adcode` 切换城市（默认秦皇岛 `130300`）
+- **省市下拉联动选择**：选择省份后自动列出该省地级市（数据写死在 [src/data/regions.js](src/data/regions.js)，来源 `AMap_adcode_citycode.xlsx`，默认河北省秦皇岛市）
+- 通过 URL 参数 `?city=adcode` 直接指定城市（如 `?city=110000` 为北京）
 - 加载 / 错误状态与刷新功能
 - 响应式布局，`base: './'` 相对路径构建，可发布到任意静态托管
 
@@ -22,7 +23,7 @@ npm run dev
 
 浏览器打开终端提示的地址即可，例如 <http://localhost:5173>。
 
-切换城市：<http://localhost:5173/?city=110000>（北京）
+切换城市：页面顶部的省 / 市下拉框选择即可；也支持 URL 参数：<http://localhost:5173/?city=110000>（北京）。
 
 ## 生产构建
 
@@ -64,9 +65,11 @@ npm run preview # 本地预览构建产物
 └── src/
     ├── main.js          # 应用入口
     ├── style.css        # 全局样式
-    ├── App.vue          # 页面主逻辑（数据请求、状态管理）
+    ├── App.vue          # 页面主逻辑（省市选择、数据请求、状态管理）
     ├── api/
     │   └── weather.js   # 高德天气 API 封装
+    ├── data/
+    │   └── regions.js   # 省市行政区划数据（写死，来源 AMap_adcode_citycode.xlsx）
     ├── utils/
     │   └── weather.js   # 天气图标 / 星期 映射工具
     └── components/

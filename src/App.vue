@@ -1,24 +1,44 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { fetchWeather, DEFAULT_CITY } from './api/weather'
+import { fetchWeather } from './api/weather'
+import { REGIONS } from './data/regions'
 import WeatherCard from './components/WeatherCard.vue'
 import ForecastList from './components/ForecastList.vue'
 
-// 支持通过 URL 参数 ?city=adcode 指定城市（如 ?city=110000 为北京），默认秦皇岛
-const routeCity = new URLSearchParams(window.location.search).get('city')
-const city = ref(routeCity || DEFAULT_CITY)
+// 省 / 市 选项（数据写死在 src/data/regions.js，来源 AMap_adcode_citycode.xlsx）
+const provinceOptions = computed(() => REGIONS.map(([name]) => name))
+const cityOptions = computed(() => {
+  const prov = REGIONS.find(([name]) => name === selectedProvince.value)
+  return prov ? prov[2] : []
+})
+
+// 当前选中省市
+const selectedProvince = ref('')
+const selectedCity = ref('')
+
+// 当前选中市的 adcode（用于高德天气接口）
+const cityAdcode = computed(() => {
+  const city = cityOptions.value.find(([name]) => name === selectedCity.value)
+  return city ? city[1] : ''
+})
 
 const loading = ref(true)
 const error = ref('')
 const weather = ref(null)
 
+// 当前城市实况 / 未来几天预报（供模板使用）
+const life = computed(() => weather.value?.lives?.[0] || null)
+const forecast = computed(() => weather.value?.forecasts?.[0]?.casts || [])
+
 async function loadWeather() {
+  if (!cityAdcode.value) return
   loading.value = true
   error.value = ''
   try {
-    const data = await fetchWeather(city.value)
-    if (!data.lives.length) {
-      throw new Error(`未获取到城市「${city.value}」的实况天气，请检查 adcode 是否正确`)
+    const data = await fetchWeather(cityAdcode.value)
+    // 部分区域（如港澳台）接口返回 lives 但无天气字段，同样视为无数据
+    if (!data.lives.length || !data.lives[0].weather) {
+      throw new Error(`暂未获取到「${selectedCity.value}」的实况天气，请换个城市试试`)
     }
     weather.value = data
   } catch (e) {
@@ -28,10 +48,39 @@ async function loadWeather() {
   }
 }
 
-const life = computed(() => weather.value?.lives?.[0] || null)
-const forecast = computed(() => weather.value?.forecasts?.[0]?.casts || [])
+function onProvinceChange() {
+  // 切换省份后，自动选中该省第一个市并加载天气
+  selectedCity.value = cityOptions.value[0]?.[0] || ''
+  loadWeather()
+}
 
-onMounted(loadWeather)
+function onCityChange() {
+  loadWeather()
+}
+
+function initSelection() {
+  // 优先从 URL 参数 ?city=adcode 恢复（如 ?city=110000）
+  const routeCity = new URLSearchParams(window.location.search).get('city')
+  if (routeCity) {
+    for (const [pname, , cities] of REGIONS) {
+      for (const [cname, cadcode] of cities) {
+        if (cadcode === routeCity) {
+          selectedProvince.value = pname
+          selectedCity.value = cname
+          return
+        }
+      }
+    }
+  }
+  // 默认河北省秦皇岛市
+  selectedProvince.value = '河北省'
+  selectedCity.value = '秦皇岛市'
+}
+
+onMounted(() => {
+  initSelection()
+  loadWeather()
+})
 </script>
 
 <template>
@@ -42,10 +91,23 @@ onMounted(loadWeather)
     </header>
 
     <main class="content">
+      <!-- 省市选择 -->
+      <div class="selector">
+        <select v-model="selectedProvince" class="select" @change="onProvinceChange" aria-label="选择省份">
+          <option v-for="name in provinceOptions" :key="name" :value="name">{{ name }}</option>
+        </select>
+
+        <select v-model="selectedCity" class="select" @change="onCityChange" aria-label="选择城市">
+          <option v-for="c in cityOptions" :key="c[1]" :value="c[0]">{{ c[0] }}</option>
+        </select>
+
+        <button class="btn" @click="loadWeather" :disabled="loading">刷新</button>
+      </div>
+
       <!-- 加载中 -->
       <div v-if="loading" class="status">
         <div class="spinner" aria-hidden="true"></div>
-        <p>正在获取天气数据…</p>
+        <p>正在获取 {{ selectedProvince }}·{{ selectedCity }} 的天气数据…</p>
       </div>
 
       <!-- 请求失败 -->
@@ -57,18 +119,13 @@ onMounted(loadWeather)
 
       <!-- 正常展示 -->
       <template v-else>
-        <div class="toolbar">
-          <span class="city-badge">📍 {{ life.city }}</span>
-          <button class="btn" @click="loadWeather" :disabled="loading">刷新</button>
-        </div>
-
         <WeatherCard :life="life" />
         <ForecastList :forecasts="forecast" />
       </template>
     </main>
 
     <footer class="footer">
-      <p>支持 URL 参数切换城市：<code>?city=adcode</code>，例如 <code>?city=110000</code>（北京）</p>
+      <p>数据来源：高德地图开放平台</p>
     </footer>
   </div>
 </template>
@@ -106,20 +163,47 @@ onMounted(loadWeather)
   gap: 20px;
 }
 
-.toolbar {
+.selector {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.city-badge {
-  font-size: 14px;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.1);
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1;
+  min-width: 140px;
+  background: var(--card-bg);
   border: 1px solid var(--card-border);
-  padding: 6px 12px;
+  color: var(--text-main);
+  font-size: 14px;
+  padding: 9px 14px;
   border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
+    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+
+.select:hover {
+  border-color: var(--accent);
+}
+
+.select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+}
+
+.select option {
+  background: #1e293b;
+  color: #f8fafc;
 }
 
 .btn {
@@ -132,6 +216,7 @@ onMounted(loadWeather)
   border-radius: 999px;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.1s ease;
+  white-space: nowrap;
 }
 
 .btn:hover:not(:disabled) {
