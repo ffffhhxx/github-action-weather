@@ -9,7 +9,8 @@
 - **省市下拉联动选择**：选择省份后自动列出该省地级市（数据写死在 [src/data/regions.js](src/data/regions.js)，来源 `AMap_adcode_citycode.xlsx`，默认河北省秦皇岛市）
 - 通过 URL 参数 `?city=adcode` 直接指定城市（如 `?city=110000` 为北京）
 - 加载 / 错误状态与刷新功能
-- 响应式布局，`base: './'` 相对路径构建，可发布到任意静态托管
+- **密钥安全**：高德 Key 保存在 Cloudflare Workers 环境变量中，由 Worker 代理转发请求，前端代码不包含任何密钥
+- 响应式布局，`base: '/github-action-weather/'` 与 GitHub Pages 项目页地址一致
 
 ## 本地运行
 
@@ -36,10 +37,14 @@ npm run preview # 本地预览构建产物
 
 ## 接口说明
 
+前端通过 **Cloudflare Workers 代理** 获取天气，再由代理转发到高德：
+
 | 项 | 值 |
 | --- | --- |
-| 接口 | `GET https://restapi.amap.com/v3/weather/weatherInfo` |
-| 参数 | `city`（城市 adcode）、`key`（高德 Key）、`extensions`（`base` 实况 / `all` 实况+预报） |
+| 前端请求 | `GET https://frosty-rain-6353.858252352.workers.dev` |
+| 前端参数 | `city`（城市 adcode）、`extensions`（`base` 实况 / `all` 实况+预报）、`token`（访问口令） |
+| 代理转发 | `GET https://restapi.amap.com/v3/weather/weatherInfo` |
+| 密钥位置 | 高德 Key 存于 Worker 环境变量 `AMAP_KEY`，前端不接触 |
 
 相关代码在 [src/api/weather.js](src/api/weather.js)，城市可在 URL 中通过 `?city=` 指定。
 
@@ -49,11 +54,13 @@ npm run preview # 本地预览构建产物
 2. 仓库 `Settings → Pages → Build and deployment`，Source 选择 `GitHub Actions`。
 3. 提交时触发构建部署；也可选用 `workflow_dispatch` 手动触发。
 
-> 本项目使用相对路径 `base: './'`，仓库部署在项目子路径（`https://<用户名>.github.io/<仓库名>/`）下无需修改配置。
+> 本项目使用绝对路径 `base: '/github-action-weather/'`，对应 GitHub Pages 项目页（`https://<用户名>.github.io/github-action-weather/`）。如需部署到别的子路径，改 [vite.config.js](vite.config.js) 里的 `base` 即可。
 
 ## 安全提示
 
-当前高德 Key 直接写在前端代码中（[src/api/weather.js](src/api/weather.js)），会暴露给访问者。个人项目 / 展示用途可接受；如 Key 有调用配额限制或需要更高安全性，建议改为通过服务端代理转发请求，将 Key 保存在服务端环境变量中。
+高德 Key 现保存在 Cloudflare Workers 的环境变量 `AMAP_KEY` 中，前端代码不再包含密钥。Worker 还会校验访问口令 `token`（与前端 [src/api/weather.js](src/api/weather.js) 中的 `ACCESS_TOKEN` 一致），防止陌生人直接调用代理消耗额度；注意口令写在公开页面源码中，只是提高门槛，并非真正安全。
+
+> ⚠️ 早期版本曾把 Key 明文写在前端并提交到公开仓库，该旧 Key 已暴露且仍在 git 历史中。**建议去高德控制台重新生成一把新 Key**，并把新 Key 更新到 Worker 的 `AMAP_KEY` 环境变量，使旧 Key 作废。
 
 ## 目录结构
 

@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// base: './' 使用相对路径，构建产物可以发布到任意静态站点
-// （GitHub Pages 项目页 / Netlify / Vercel / 任意子路径）而无需修改代码。
+// base: '/github-action-weather/' 与 GitHub Pages 项目页地址保持一致
+// （https://FFFFHHHXX.github.io/github-action-weather/），部署到别的子路径时改这里即可
 export default defineConfig({
   plugins: [vue()],
   base: '/github-action-weather/',
